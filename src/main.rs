@@ -1,5 +1,7 @@
+use std::{collections::HashMap, ops::{Add, AddAssign}};
+
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ManaType {
+pub enum ManaType {
     W,
     U,
     B,
@@ -8,8 +10,10 @@ enum ManaType {
     C
 }
 
-impl Into::<usize> for ManaType {
-    fn into(self) -> usize {
+pub use ManaType::*;
+
+impl ManaType {
+    const fn usize(self) -> usize {
         match self {
             W => 0,
             U => 1,
@@ -20,9 +24,6 @@ impl Into::<usize> for ManaType {
         }
     }
 }
-use std::{collections::HashMap, ops::{Add, AddAssign}};
-
-pub use ManaType::*;
 
 #[derive(Copy, Clone)]
 pub struct ManaCost(
@@ -91,9 +92,9 @@ impl ManaSet {
     fn empty() -> Self {
         Self([0;6])
     }
-    fn s(t: ManaType) -> Self {
-        let mut o = Self::empty();
-        o.0[Into::<usize>::into(t)] = 1;
+    const fn s(t: ManaType) -> Self {
+        let mut o = Self([0;6]);
+        o.0[t.usize()] = 1;
         o
     }
 }
@@ -101,7 +102,9 @@ impl ManaSet {
 trait Card {
     fn mana_gen(&self) -> Option<&'static [ManaSet]>;
     fn mana_gen_fast(&self) -> Option<&'static [ManaSet]>;
-    fn is(&self, name: &str) -> bool;
+    fn is(&self, name: &str) -> bool {
+        name == self.name()
+    }
     fn name(&self) ->  &str;
 }
 
@@ -119,10 +122,6 @@ impl Card for Land {
         None
     }
 
-    fn is(&self, name: &str) -> bool {
-        self.name == name
-    }
-    
     fn name(&self) ->  &str {
         self.name
     }
@@ -141,10 +140,6 @@ impl Card for Mox {
     fn mana_gen_fast(&self) -> Option<&'static [ManaSet]> {
         Some(self.types)
     }
-
-    fn is(&self, name: &str) -> bool {
-        self.name == name
-    }
     
     fn name(&self) ->  &str {
         self.name
@@ -161,10 +156,6 @@ impl Card for Dud {
         None
     }
 
-    fn is(&self, name: &str) -> bool {
-        false
-    }
-
     fn name(&self) ->  &str {
         "Dud"
     }
@@ -179,31 +170,31 @@ const LOTUS_SETS: &'static [ManaSet] = &[
 ];
 
 const LAND_W: &'static [ManaSet] = &[
-    ManaSet([1,0,0,0,0,0])
+    ManaSet::s(W)
 ];
 
 const LAND_U: &'static [ManaSet] = &[
-    ManaSet([0,1,0,0,0,0])
+    ManaSet::s(U)
 ];
 const LAND_B: &'static [ManaSet] = &[
-    ManaSet([0,0,1,0,0,0])
+    ManaSet::s(B)
 ];
 const LAND_R: &'static [ManaSet] = &[
-    ManaSet([0,0,0,1,0,0])
+    ManaSet::s(R)
 ];
 const LAND_G: &'static [ManaSet] = &[
-    ManaSet([0,0,0,0,1,0])
+    ManaSet::s(G)
 ];
 const LAND_RG: &'static [ManaSet] = &[
-    ManaSet([0,0,0,1,0,0]),
-    ManaSet([0,0,0,0,1,0])
+    ManaSet::s(R),
+    ManaSet::s(G)
 ];
 const LAND_CITY: &'static [ManaSet] = &[
-    ManaSet([1,0,0,0,0,0]),
-    ManaSet([0,1,0,0,0,0]),
-    ManaSet([0,0,1,0,0,0]),
-    ManaSet([0,0,0,1,0,0]),
-    ManaSet([0,0,0,0,1,0]),
+    ManaSet::s(W),
+    ManaSet::s(B),
+    ManaSet::s(U),
+    ManaSet::s(R),
+    ManaSet::s(G)
 ];
 
 #[derive(Clone, Copy)]
@@ -275,43 +266,29 @@ impl Hand {
     }
 
     fn can_produce_rec(&self, goal: &ManaCost, curr: ManaSet, idx: usize, can_land: bool) -> bool {
-        let ok_now = curr.contains(goal);
-        if ok_now || idx >= self.cards.len() {
-            return ok_now;
+        if idx >= self.cards.len() {
+            return false;
         }
-        if can_land {
-            if let Some(sets) = self.cards[idx].mana_gen() {
-                for newset in sets.iter() {
-                    let sum = curr + *newset;
-                    if sum.contains(goal) {
-                        return true;
-                    }
-                    for newidx in idx+1..self.cards.len() {
-                        let res = self.can_produce_rec(goal, sum, newidx, false);
-                        if res {
-                            return true;
-                        }
-                    }
-                }
+        for (loop_idx, val) in [self.cards[idx].mana_gen(), self.cards[idx].mana_gen_fast()].iter().enumerate() {
+            let Some(sets) = val else {
+                continue
+            };
+            if loop_idx == 0 && !can_land {
+                continue;
             }
-        }
-        if let Some(sets) = self.cards[idx].mana_gen_fast() {
             for newset in sets.iter() {
                 let sum = curr + *newset;
                 if sum.contains(goal) {
                     return true;
                 }
                 for newidx in idx+1..self.cards.len() {
-                    let res = self.can_produce_rec(goal, sum, newidx, can_land);
-                    if res {
+                    if self.can_produce_rec(goal, sum, newidx, if loop_idx == 0 { false } else { can_land }) {
                         return true;
                     }
                 }
-                
             }
-        };
-
-        return false;
+        }
+        false
     }
 }
 
@@ -320,6 +297,7 @@ pub struct Deck {
     deck: HashMap::<usize, usize>
 }
 
+#[allow(unused)]
 fn max(a: usize, b: usize) -> usize {
     if a > b { a } else { b }
 }
@@ -340,21 +318,23 @@ impl Deck {
         h
     }
 
+    #[allow(unused)]
     fn name_by_idx(&self, idx: usize) -> &str {
         self.cards[idx].name()
     }
 
+    #[allow(unused)]
     fn count_hands<const N: usize>(&self) -> usize {
         let mut cards: [usize; N] = [0; N];
-        self.count_hands_rec(&mut cards, 0, 0, 0, |_| true)
+        self.count_hands_rec(&mut cards, 0, 0, |_| true)
     }
 
     fn count_hands_if<const N: usize>(&self,  pred: fn(&Hand) -> bool) -> usize {
         let mut cards: [usize; N] = [0; N];
-        self.count_hands_rec(&mut cards, 0, 0, 0, pred)
+        self.count_hands_rec(&mut cards, 0, 0, pred)
     }
 
-    fn count_hands_rec<const N: usize>(&self, cards: &mut [usize; N], dealt: usize, deck_idx: usize, depth: usize, pred: fn(&Hand) -> bool) -> usize {
+    fn count_hands_rec<const N: usize>(&self, cards: &mut [usize; N], dealt: usize, deck_idx: usize, pred: fn(&Hand) -> bool) -> usize {
         if dealt == N {
             let hand = self.deal_hand(cards);
             if !pred(&hand) {
@@ -373,7 +353,7 @@ impl Deck {
                 for i in 0..deal {
                     cards[dealt + i] = card_idx;
                 }
-                count += self.count_hands_rec(cards, dealt + deal, card_idx + 1, depth+1, pred);
+                count += self.count_hands_rec(cards, dealt + deal, card_idx + 1, pred);
             }
         }
         count
@@ -488,8 +468,8 @@ fn main() {
     d.add(&BLOODLUST, 4);
     d.add(&DUD, 26);
     assert!(d.num_cards() == 60);
-    println!("Count: {}", d.count_hands_if::<7>(is_double_berserk));
-    println!("Count: {}", d.count_hands_if::<7>(is_bloodlust_berserk));
+    println!("Double Berserk: {}", d.count_hands_if::<7>(is_double_berserk));
+    println!("Bloodlust + Berserk: {}", d.count_hands_if::<7>(is_bloodlust_berserk));
 }
 
 #[cfg(test)]
