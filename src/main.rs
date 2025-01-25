@@ -161,7 +161,7 @@ impl Card for Dud {
     }
 }
 
-const LOTUS_SETS: &'static [ManaSet] = &[
+const MANA_LOTUS: &'static [ManaSet] = &[
     ManaSet([3,0,0,0,0,0]),
     ManaSet([0,3,0,0,0,0]),
     ManaSet([0,0,3,0,0,0]),
@@ -169,27 +169,17 @@ const LOTUS_SETS: &'static [ManaSet] = &[
     ManaSet([0,0,0,0,3,0]),
 ];
 
-const LAND_W: &'static [ManaSet] = &[
-    ManaSet::s(W)
-];
+const MANA_W: &'static [ManaSet] = &[ManaSet::s(W)];
+const MANA_U: &'static [ManaSet] = &[ManaSet::s(U)];
+const MANA_B: &'static [ManaSet] = &[ManaSet::s(B)];
+const MANA_R: &'static [ManaSet] = &[ManaSet::s(R)];
+const MANA_G: &'static [ManaSet] = &[ManaSet::s(G)];
 
-const LAND_U: &'static [ManaSet] = &[
-    ManaSet::s(U)
-];
-const LAND_B: &'static [ManaSet] = &[
-    ManaSet::s(B)
-];
-const LAND_R: &'static [ManaSet] = &[
-    ManaSet::s(R)
-];
-const LAND_G: &'static [ManaSet] = &[
-    ManaSet::s(G)
-];
-const LAND_RG: &'static [ManaSet] = &[
+const MANA_RG: &'static [ManaSet] = &[
     ManaSet::s(R),
     ManaSet::s(G)
 ];
-const LAND_CITY: &'static [ManaSet] = &[
+const MANA_CITY: &'static [ManaSet] = &[
     ManaSet::s(W),
     ManaSet::s(B),
     ManaSet::s(U),
@@ -205,7 +195,7 @@ impl Card for BlackLotus {
     }
 
     fn mana_gen_fast(&self) -> Option<&'static [ManaSet]> {
-        Some(LOTUS_SETS)
+        Some(MANA_LOTUS)
     }
 
     fn is(&self, name: &str) -> bool {
@@ -269,11 +259,11 @@ impl Hand {
         if idx >= self.cards.len() {
             return false;
         }
-        for (loop_idx, val) in [self.cards[idx].mana_gen(), self.cards[idx].mana_gen_fast()].iter().enumerate() {
+        for (val, needs_land) in [(self.cards[idx].mana_gen(), true), (self.cards[idx].mana_gen_fast(), false)].iter() {
             let Some(sets) = val else {
                 continue
             };
-            if loop_idx == 0 && !can_land {
+            if *needs_land && !can_land {
                 continue;
             }
             for newset in sets.iter() {
@@ -282,7 +272,7 @@ impl Hand {
                     return true;
                 }
                 for newidx in idx+1..self.cards.len() {
-                    if self.can_produce_rec(goal, sum, newidx, if loop_idx == 0 { false } else { can_land }) {
+                    if self.can_produce_rec(goal, sum, newidx, if *needs_land { false } else { can_land }) {
                         return true;
                     }
                 }
@@ -419,18 +409,18 @@ fn ncr(n: usize, r: usize) -> usize {
 }
 
 pub const LOTUS: BlackLotus = BlackLotus{};
-pub const CITY:  Land = Land { name: "City of Brass", types: LAND_CITY };
-pub const TAIGA:  Land = Land { name: "Taiga", types: LAND_RG };
+pub const CITY:  Land = Land { name: "City of Brass", types: MANA_CITY };
+pub const TAIGA:  Land = Land { name: "Taiga", types: MANA_RG };
 pub const BALL: NonMana = NonMana { name: "Ball Lightning" };
 pub const BERSERK: NonMana = NonMana { name: "Berserk" };
 pub const BLOODLUST: NonMana = NonMana { name: "Bloodlust" };
-pub const MOUNTAIN: Land = Land { name: "Mountain", types: LAND_R };
-pub const FOREST: Land = Land { name: "Forest", types: LAND_G };
-pub const MOX_R: Mox = Mox { name: "Mox Ruby", types: LAND_R };
-pub const MOX_G: Mox = Mox { name: "Mox Emerald", types: LAND_G };
-pub const MOX_U: Mox = Mox { name: "Mox Sapphire", types: LAND_U };
-pub const MOX_W: Mox = Mox { name: "Mox Pearl", types: LAND_W };
-pub const MOX_B: Mox = Mox { name: "Mox Jet", types: LAND_B };
+pub const MOUNTAIN: Land = Land { name: "Mountain", types: MANA_R };
+pub const FOREST: Land = Land { name: "Forest", types: MANA_G };
+pub const MOX_R: Mox = Mox { name: "Mox Ruby", types: MANA_R };
+pub const MOX_G: Mox = Mox { name: "Mox Emerald", types: MANA_G };
+pub const MOX_U: Mox = Mox { name: "Mox Sapphire", types: MANA_U };
+pub const MOX_W: Mox = Mox { name: "Mox Pearl", types: MANA_W };
+pub const MOX_B: Mox = Mox { name: "Mox Jet", types: MANA_B };
 pub const DUD: Dud = Dud{};
 
 fn main() {
